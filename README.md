@@ -547,6 +547,12 @@ Description=gunicorn socket
 
 [Socket]
 ListenStream=/run/gunicorn.sock
+# Our service won't need permissions for the socket, since it
+# inherits the file descriptor by socket activation
+# only the nginx daemon will need access to the socket
+SocketUser=www-data
+# Optionally restrict the socket permissions even more.
+# SocketMode=600
 
 [Install]
 WantedBy=sockets.target
@@ -573,6 +579,29 @@ ExecStart=/home/django/CodingWithMitchChat/venv/bin/gunicorn \
           --workers 3 \
           --bind unix:/run/gunicorn.sock \
           CodingWithMitchChat.wsgi:application
+
+[Install]
+WantedBy=multi-user.target
+[Unit]
+Description=gunicorn daemon
+Requires=gunicorn.socket
+After=network.target
+
+[Service]
+Type=notify
+# the specific user that our service will run as
+User=someuser
+Group=someuser
+# another option for an even more restricted service is
+# DynamicUser=yes
+# see http://0pointer.net/blog/dynamic-users-with-systemd.html
+RuntimeDirectory=gunicorn
+WorkingDirectory=/home/django/CodingWithMitchChat/src
+ExecStart=/home/django/CodingWithMitchChat/venv/bin/gunicorn applicationname.wsgi
+ExecReload=/bin/kill -s HUP $MAINPID
+KillMode=mixed
+TimeoutStopSec=5
+PrivateTmp=true
 
 [Install]
 WantedBy=multi-user.target
