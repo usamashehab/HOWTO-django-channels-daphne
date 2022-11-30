@@ -582,29 +582,7 @@ ExecStart=/home/django/CodingWithMitchChat/venv/bin/gunicorn \
 
 [Install]
 WantedBy=multi-user.target
-[Unit]
-Description=gunicorn daemon
-Requires=gunicorn.socket
-After=network.target
 
-[Service]
-Type=notify
-# the specific user that our service will run as
-User=someuser
-Group=someuser
-# another option for an even more restricted service is
-# DynamicUser=yes
-# see http://0pointer.net/blog/dynamic-users-with-systemd.html
-RuntimeDirectory=gunicorn
-WorkingDirectory=/home/django/CodingWithMitchChat/src
-ExecStart=/home/django/CodingWithMitchChat/venv/bin/gunicorn applicationname.wsgi
-ExecReload=/bin/kill -s HUP $MAINPID
-KillMode=mixed
-TimeoutStopSec=5
-PrivateTmp=true
-
-[Install]
-WantedBy=multi-user.target
 ```
 
 `sudo systemctl start gunicorn.socket`
@@ -653,6 +631,35 @@ Update Nginx config file at `/etc/nginx/nginx.conf` so we can upload large files
 http{
 	...
 	client_max_body_size 10M;
+  server {
+    # use 'listen 80 deferred;' for Linux
+    # use 'listen 80 accept_filter=httpready;' for FreeBSD
+    listen 80;
+    client_max_body_size 4G;
+
+    # set the correct host(s) for your site
+    server_name trlogisticssolutions.com;
+
+    keepalive_timeout 5;
+
+    # path for static files
+    root /home/django/CodingWithMitchChat/src;
+
+    location / {
+      # checks for static file, if not found proxy to app
+      try_files $uri @proxy_to_app;
+    }
+
+
+    location @proxy_to_app {
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      proxy_set_header X-Forwarded-Proto $scheme;
+      proxy_set_header Host $http_host;
+      # we don't want nginx trying to do something clever with
+      # redirects, we set the Host: header above already.
+      proxy_redirect off;
+      proxy_pass http://unix:/run/gunicorn.sock;
+    }
 }
 ```
 
